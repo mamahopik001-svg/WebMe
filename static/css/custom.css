@@ -1,0 +1,74 @@
+/* Custom styles for the file manager application */
+
+/* Directory tree styling */
+.folder-item {
+    transition: all 0.2s ease;
+}
+
+.folder-header {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.folder-header:hover {
+    background-color: var(--bs-dark);
+}
+
+.folder-header.has-children {
+    position: relative;
+}
+
+.folder-link {
+    color: var(--bs-light);
+}
+
+.folder-link:hover {
+    color: var(--bs-primary);
+}
+
+.file-link {
+    color: var(--bs-light);
+}
+
+.file-link:hover {
+    color: var(--bs-info);
+}
+
+.file-item {
+    transition: background-color 0.2s ease;
+}
+
+.file-item:hover {
+    background-color: var(--bs-dark);
+}
+
+/* Image gallery styling */
+.image-gallery .card {
+    transition: transform 0.2s ease;
+    overflow: hidden;
+}
+
+.image-gallery .card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.image-gallery .card-img-top {
+    background-color: var(--bs-dark);
+    padding: 0.5rem;
+}
+
+/* Crop modal styling */
+#cropModal .img-container {
+    max-height: 60vh;
+    overflow: hidden;
+}
+
+/* Cropper.js customizations */
+.cropper-view-box {
+    outline: 1px solid var(--bs-primary);
+}
+
+.cropper-point {
+    background-color: var(--bs-primary);
+}

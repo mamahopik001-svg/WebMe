@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Directory Browser - {{ current_path }}{% endblock %}
+
+{% block header_controls %}
+<div class="d-flex justify-content-end gap-3 ms-auto">
+    <form id="delete-form" class="d-flex" method="post" action="{{ url_for('delete_files') }}" onsubmit="return confirmDelete()">
+        <button type="submit" class="btn btn-danger">
+            <i class="fas fa-trash-alt me-2"></i>Delete Selected
+        </button>
+    </form>
+    
+    <form id="rename-form" class="d-flex" method="post" action="{{ url_for('batch_rename') }}">
+        <input type="hidden" name="paths" id="rename-paths">
+        <div class="input-group">
+            <input type="text" name="basename" class="form-control" required placeholder="New base name">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-edit me-2"></i>Rename Selected
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">
+            <i class="fas fa-location-arrow me-2"></i>Current Location
+        </h5>
+    </div>
+    <div class="card-body">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('browse_directory', subpath='') }}">Root</a></li>
+                
+                {% set path_parts = relative_path.split('/') %}
+                {% set current_path = '' %}
+                
+                {% for part in path_parts %}
+                    {% if part %}
+                        {% set current_path = current_path + '/' + part if current_path else part %}
+                        <li class="breadcrumb-item {% if loop.last %}active{% endif %}">
+                            {% if not loop.last %}
+                                <a href="{{ url_for('browse_directory', subpath=current_path) }}">{{ part }}</a>
+                            {% else %}
+                                {{ part }}
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div id="directory-tree" class="mb-4">
+    <form id="paths-form">
+        {% macro render_directory(item, level=0) %}
+            {% if item.type == 'directory' %}
+                <div class="folder-item mb-2 {% if level > 0 %}ms-4{% endif %}">
+                    <div class="d-flex align-items-center p-2 rounded folder-header 
+                        {% if item.children|length > 0 %}has-children{% endif %}"
+                        id="folder-{{ item.path|replace('/', '-') }}">
+                        <div class="form-check me-2">
+                            <input type="checkbox" class="form-check-input" name="paths" value="{{ item.path }}">
+                        </div>
+                        <i class="fas fa-folder me-2 text-warning"></i>
+                        <a href="{{ url_for('browse_directory', subpath=item.path) }}" class="folder-link text-decoration-none">
+                            {{ item.name }}
+                        </a>
+                    </div>
+                    
+                    <div class="folder-content">
+                        {% if 'error' in item %}
+                            <div class="alert alert-danger ms-4 mt-2">
+                                <i class="fas fa-exclamation-triangle me-2"></i>{{ item.error }}
+                            </div>
+                        {% else %}
+                            {% if item.children|selectattr('is_image', 'defined')|selectattr('is_image')|list|length > 0 %}
+                                <div class="image-gallery ms-4 my-3">
+                                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 row-cols-xl-6 g-3">
+                                        {% for child in item.children if child.is_image %}
+                                            <div class="col">
+                                                <div class="card h-100">
+                                                    <div class="form-check position-absolute m-2">
+                                                        <input type="checkbox" class="form-check-input" name="paths" value="{{ child.path }}">
+                                                    </div>
+                                                    <img src="{{ url_for('serve_file', filepath=child.path) }}" 
+                                                         alt="{{ child.name }}" 
+                                                         class="card-img-top img-thumbnail" 
+                                                         style="height: 150px; object-fit: contain; cursor: pointer;"
+                                                         onclick="openCrop('{{ url_for('serve_file', filepath=child.path) }}', '{{ child.path }}')">
+                                                    <div class="card-footer text-truncate">
+                                                        <small>{{ child.name }}</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            {% for child in item.children %}
+                                {% if child.type == 'directory' %}
+                                    {{ render_directory(child, level+1) }}
+                                {% elif not child.is_image %}
+                                    <div class="file-item mb-1 ms-4 ps-4">
+                                        <div class="d-flex align-items-center p-2 rounded">
+                                            <div class="form-check me-2">
+                                                <input type="checkbox" class="form-check-input" name="paths" value="{{ child.path }}">
+                                            </div>
+                                            <i class="fas fa-file me-2 text-info"></i>
+                                            <a href="{{ url_for('serve_file', filepath=child.path) }}" 
+                                               class="file-link text-decoration-none" 
+                                               target="_blank">
+                                                {{ child.name }}
+                                            </a>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        {% endmacro %}
+        
+        {{ render_directory(dir_structure) }}
+    </form>
+</div>
+
+<!-- Modal for Image Cropping -->
+<div class="modal fade" id="cropModal" tabindex="-1" aria-labelledby="cropModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cropModalLabel">Crop Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="img-container">
+                    <img id="cropImage" src="" alt="Image to crop" class="img-fluid">
+                </div>
+                <input type="hidden" id="imagePath" value="">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="cropButton">
+                    <i class="fas fa-crop-alt me-2"></i>Crop Image
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Function to confirm file deletion
+    function confirmDelete() {
+        const checkedBoxes = document.querySelectorAll('#directory-tree input[type=checkbox][name="paths"]:checked');
+        if (checkedBoxes.length === 0) {
+            alert('Please select at least one file or folder to delete.');
+            return false;
+        }
+        
+        // Create hidden inputs for each checked path
+        const form = document.getElementById('delete-form');
+        checkedBoxes.forEach(function(checkbox) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'paths';
+            input.value = checkbox.value;
+            form.appendChild(input);
+        });
+        
+        return confirm(`Are you sure you want to delete ${checkedBoxes.length} item(s)? This action cannot be undone.`);
+    }
+    
+    // Handle rename form submission
+    document.getElementById('rename-form').addEventListener('submit', function(e) {
+        const checkedBoxes = document.querySelectorAll('#directory-tree input[type=checkbox][name="paths"]:checked');
+        if (checkedBoxes.length === 0) {
+            alert('Please select at least one file or folder to rename.');
+            e.preventDefault();
+            return;
+        }
+        
+        const paths = Array.from(checkedBoxes).map(cb => cb.value);
+        document.getElementById('rename-paths').value = paths.join(',');
+        
+        return confirm(`Are you sure you want to rename ${checkedBoxes.length} item(s)?`);
+    });
+    
+    // Initialize the cropper modal
+    function openCrop(imageUrl, imagePath) {
+        const cropModal = new bootstrap.Modal(document.getElementById('cropModal'));
+        const cropImage = document.getElementById('cropImage');
+        
+        document.getElementById('imagePath').value = imagePath;
+        cropImage.src = imageUrl;
+        
+        cropModal.show();
+        
+        // Initialize cropper after the modal is shown
+        cropModal._element.addEventListener('shown.bs.modal', function() {
+            if (window.cropper) {
+                window.cropper.destroy();
+            }
+            
+            window.cropper = new Cropper(cropImage, {
+                aspectRatio: NaN,
+                viewMode: 1,
+                autoCropArea: 0.8
+            });
+        });
+    }
+    
+    // Handle crop button click
+    document.getElementById('cropButton').addEventListener('click', function() {
+        if (!window.cropper) return;
+        
+        const canvas = window.cropper.getCroppedCanvas();
+        const imagePath = document.getElementById('imagePath').value;
+        
+        // Convert canvas to a data URL
+        const croppedImageData = canvas.toDataURL('image/png');
+        
+        // Here we would normally send the cropped image to the server
+        console.log('Image cropped, would normally send to server:', imagePath);
+        
+        // For now just display the cropped image in a new window
+        const newTab = window.open();
+        newTab.document.write('<img src="' + croppedImageData + '" />');
+        newTab.document.close();
+        
+        // Close the modal
+        const cropModal = bootstrap.Modal.getInstance(document.getElementById('cropModal'));
+        cropModal.hide();
+    });
+</script>
+{% endblock %}
